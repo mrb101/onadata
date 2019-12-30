@@ -14,6 +14,7 @@ from past.builtins import basestring
 
 from onadata.apps.api import tools
 from onadata.apps.logger.models.xform import XForm
+from django.contrib.auth.models import User
 
 
 def recreate_tmp_file(name, path, mime_type):
@@ -63,6 +64,13 @@ def delete_xform_async(xform_id):
     """Soft delete an XForm asynchrounous task"""
     xform = XForm.objects.get(pk=xform_id)
     xform.soft_delete()
+
+
+@task()
+def delete_user_async(username):
+    """Delete a user account asynchrounous task"""
+    user = User.objects.get(username=username)
+    user.delete()
 
 
 def get_async_status(job_uuid):
