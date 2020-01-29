@@ -118,6 +118,7 @@ class TestMergedXFormViewSet(TestAbstractViewSet):
         self.assertIn('id', response.data)
         self.assertIn('title', response.data)
         self.assertIn('xforms', response.data)
+        self.assertIn('uuid', response.data)
         expected_xforms_data = {
             'id': xform1.pk,
             'title': xform1.title,
