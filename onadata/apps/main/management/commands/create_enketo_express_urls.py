@@ -88,14 +88,11 @@ class Command(BaseCommand):
             xforms = XForm.objects.all()
             num_of_xforms = xforms.count()
             for xform in queryset_iterator(xforms):
-                username = xform.user.username
-                id_string = xform.id_string
-                form_url = get_form_url(request, username, protocol=protocol,
-                                        xform_pk=xform.pk)
+                form_url = get_form_url(request, protocol=protocol,
+                                        xform_uuid=xform.uuid)
                 _url = enketo_url(form_url, id_string)
-                _preview_url = get_enketo_preview_url(request, username,
-                                                      id_string,
-                                                      xform_pk=xform.pk)
+                _preview_url = get_enketo_preview_url(
+                    request, id_string=id_string, xform_uuid=xform.uuid)
                 num_of_xforms -= 1
                 self.stdout.write(
                     'enketo url: %s | preview url: %s | remaining: %s' %

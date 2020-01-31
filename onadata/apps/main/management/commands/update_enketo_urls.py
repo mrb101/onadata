@@ -18,12 +18,15 @@ class Command(BaseCommand):
             "-p", "--server_port", dest="server_port", default="443")
         parser.add_argument(
             "-r", "--protocol", dest="protocol", default="https")
+        parser.add_argument(
+            "-u", "--use-username", dest="use_username", default=False)
 
     def handle(self, *args, **options):
         request = HttpRequest()
         server_name = options.get('server_name')
         server_port = options.get('server_port')
         protocol = options.get('protocol')
+        use_username = options.get('use_username')
 
         if not server_name or not server_port or not protocol:
             raise CommandError(
@@ -45,26 +48,35 @@ class Command(BaseCommand):
 
         resultset = MetaData.objects.filter(
             Q(data_type='enketo_url') | Q(data_type='enketo_preview_url'))
+
         for meta_data in resultset:
-            username = meta_data.content_object.user.username
-            id_string = meta_data.content_object.id_string
+            username = None
+            id_string = None
+
+            if use_username:
+                username = meta_data.content_object.user.username
+                id_string = meta_data.content_object.id_string
+
             data_type = meta_data.data_type
             data_value = meta_data.data_value
             xform = meta_data.content_object
-            with open('/tmp/enketo_url', 'a') as f:
+            xform_pk = xform.pk
+            xform_uuid = not use_username and xform.uuid
 
+            with open('/tmp/enketo_url', 'a') as f:
                 if data_type == 'enketo_url':
                     form_url = get_form_url(
-                        request, username, protocol=protocol,
-                        xform_pk=xform.pk)
+                        request, username=username, id_string=id_string,
+                        xform_pk=xform_pk, xform_uuid=xform_uuid)
                     _enketo_url = enketo_url(form_url, id_string)
                     MetaData.enketo_url(xform, _enketo_url)
                 elif data_type == 'enketo_preview_url':
                     _enketo_preview_url = get_enketo_preview_url(
-                        request, username, id_string, xform_pk=xform.pk)
+                        request, id_string, username=username,
+                        xform_pk=xform_pk, xform_uuid=xform_uuid)
                     MetaData.enketo_preview_url(xform, _enketo_preview_url)
-                f.write('%s : %s \n' % (id_string, data_value))
 
+                f.write('%s : %s \n' % (id_string, data_value))
             self.stdout.write('%s: %s' % (data_type, meta_data.data_value))
 
         self.stdout.write("enketo urls update complete!!")
