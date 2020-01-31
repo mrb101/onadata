@@ -666,3 +666,80 @@ class TestXFormSubmissionViewSet(TestAbstractViewSet, TransactionTestCase):
                 self.assertContains(response, 'Unable to read submitted file',
                                     status_code=400)
                 self.assertTrue(response.has_header('X-OpenRosa-Version'))
+
+    def test_post_submission_using_uuid_while_anonymous(self):
+        """
+        Test that one is able to submit data using form_uuid
+        while anonymous
+        """
+        s = self.surveys[0]
+        media_file = "1335783522563.jpg"
+        path = os.path.join(self.main_directory, 'fixtures',
+                            'transportation', 'instances', s, media_file)
+        with open(path, 'rb') as f:
+            f = InMemoryUploadedFile(f, 'media_file', media_file, 'image/jpg',
+                                     os.path.getsize(path), None)
+            submission_path = os.path.join(
+                self.main_directory, 'fixtures',
+                'transportation', 'instances', s, s + '.xml')
+            with open(submission_path, 'rb') as sf:
+                data = {'xml_submission_file': sf, 'media_file': f}
+                request = self.factory.post(
+                    f'/e/{self.xform.uuid}/submission', data)
+                count = Instance.objects.filter(xform=self.xform).count()
+                request.user = AnonymousUser()
+                response = self.view(request, form_uuid=self.xform.uuid)
+                self.assertContains(response, 'Successful submission',
+                                    status_code=201)
+                self.assertTrue(response.has_header('X-OpenRosa-Version'))
+                self.assertTrue(
+                    response.has_header('X-OpenRosa-Accept-Content-Length'))
+                self.assertTrue(response.has_header('Date'))
+                self.assertEqual(response['Content-Type'],
+                                 'text/xml; charset=utf-8')
+                self.assertEqual(
+                    response['Location'],
+                    f'http://testserver/e/{self.xform.uuid}/submission')
+                self.assertEqual(
+                    Instance.objects.filter(xform=self.xform).count(),
+                    count+1)
+
+    def test_post_submission_using_uuid_while_authenticated(self):
+        """
+        Test that one is able to submit data using form_uuid
+        while authenticated
+        """
+        s = self.surveys[0]
+        media_file = "1335783522563.jpg"
+        path = os.path.join(self.main_directory, 'fixtures',
+                            'transportation', 'instances', s, media_file)
+        with open(path, 'rb') as f:
+            f = InMemoryUploadedFile(f, 'media_file', media_file, 'image/jpg',
+                                     os.path.getsize(path), None)
+            submission_path = os.path.join(
+                self.main_directory, 'fixtures',
+                'transportation', 'instances', s, s + '.xml')
+            with open(submission_path, 'rb') as sf:
+                data = {'xml_submission_file': sf, 'media_file': f}
+                count = Instance.objects.filter(xform=self.xform).count()
+                request = self.factory.post(
+                    f'/e/{self.xform.uuid}/submission', data)
+                response = self.view(request)
+                self.assertEqual(response.status_code, 401)
+                auth = DigestAuth('bob', 'bobbob')
+                request.META.update(auth(request.META, response))
+                response = self.view(request, form_uuid=self.xform.uuid)
+                self.assertContains(response, 'Successful submission',
+                                    status_code=201)
+                self.assertTrue(response.has_header('X-OpenRosa-Version'))
+                self.assertTrue(
+                    response.has_header('X-OpenRosa-Accept-Content-Length'))
+                self.assertTrue(response.has_header('Date'))
+                self.assertEqual(response['Content-Type'],
+                                 'text/xml; charset=utf-8')
+                self.assertEqual(
+                    response['Location'],
+                    f'http://testserver/e/{self.xform.uuid}/submission')
+                self.assertEqual(
+                    Instance.objects.filter(xform=self.xform).count(),
+                    count + 1)
