@@ -22,14 +22,16 @@ class AnonDjangoObjectPermissionFilter(filters.DjangoObjectPermissionsFilter):
         """
         form_id = view.kwargs.get(
             view.lookup_field, view.kwargs.get('xform_pk'))
+        form_uuid = view.kwargs.get('form_uuid')
         queryset = queryset.filter(deleted_at=None)
         if request.user.is_anonymous:
             return queryset
 
         if form_id and view.lookup_field == 'pk':
             int_or_parse_error(form_id, u'Invalid form ID: %s')
-        if form_id:
-            xform_kwargs = {view.lookup_field: form_id}
+        if form_id or form_uuid:
+            xform_kwargs = {view.lookup_field: form_id} if form_id \
+                 else {'uuid': form_uuid}
             # check if form is public and return it
             try:
                 form = queryset.get(**xform_kwargs)
