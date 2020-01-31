@@ -44,8 +44,8 @@ def _create_enketo_url(request, xform):
     :param xform:
     :return: enketo url
     """
-    form_url = get_form_url(request, xform.user.username,
-                            settings.ENKETO_PROTOCOL, xform_pk=xform.pk)
+    form_url = get_form_url(
+        request, settings.ENKETO_PROTOCOL, xform_uuid=xform.uuid)
     url = ""
 
     try:
