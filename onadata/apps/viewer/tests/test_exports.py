@@ -1285,6 +1285,38 @@ class TestExports(TestBase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Export.objects.count(), num_exports + 1)
 
+    def test_external_export_metadata_retrieved_from_master_db(self):
+        # first publish a form and make a submission
+        self._publish_transportation_form()
+        self._submit_transport_instance()
+
+        server = 'http://localhost:8080/xls/23fa4c38c0054748a984ffd89021a295'
+        data_value = 'template 1 |{0}'.format(server)
+
+        with patch('onadata.libs.utils.export_tools._get_server_from_metadata'
+                   ) as mock:
+            def _side_effect(*args):
+                """
+                We want to raise a DoesNotExist exception
+                only on the first call of our mock
+                """
+
+                def __second_side_effect(*args):
+                    return None
+
+                # change the side effect so that the next time we do not
+                # raise a DoesNotExist exception
+                mock.side_effect = __second_side_effect
+
+                raise MetaData.DoesNotExist
+
+            mock.side_effect = _side_effect
+            try:
+                mock(self.xform, data_value)
+            except MetaData.DoesNotExist:
+                self.fail("MetaData belonging to instance Does Not Exist")
+
+
     @patch('onadata.apps.viewer.tasks.get_object_or_404')
     def test_create_external_export_url_with_non_existing_export_id(
             self, mock_404):
