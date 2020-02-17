@@ -16,6 +16,7 @@ from django_digest.test import DigestAuth
 from httmock import HTTMock, all_requests
 from mock import patch
 from registration.models import RegistrationProfile
+from rest_framework.authtoken.models import Token
 
 from onadata.apps.api.tests.viewsets.test_abstract_viewset import \
     TestAbstractViewSet
@@ -729,7 +730,7 @@ class TestUserProfileViewSet(TestAbstractViewSet):
         now = timezone.now().isoformat()
         user = User.objects.get(username__iexact=self.user.username)
         user_profile = UserProfile.objects.get(user_id=user.id)
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(
             type(parse_datetime(user_profile.metadata['last_password_edit'])),
             type(parse_datetime(now)))
@@ -1217,3 +1218,30 @@ class TestUserProfileViewSet(TestAbstractViewSet):
         # clear cache
         cache.delete('change_password_attempts-bob')
         cache.delete('lockout_change_password_user-bob')
+
+    def test_invalidates_tokens(self):
+        """
+        Test that tokens are invalidated after a password
+        is changed
+        """
+        view = UserProfileViewSet.as_view(
+                {'post': 'change_password'})
+        current_password = "bobbob"
+        new_password = "bobbob1"
+        old_token = Token.objects.get(user=self.user)
+        post_data = {'current_password': current_password,
+                     'new_password': new_password}
+        request = self.factory.post('/', data=post_data, **self.extra)
+        response = view(request, user='bob')
+        self.assertEqual(response.status_code, 200)
+
+        # Assert the newly generated token isn't the same as the old
+        self.assertNotEqual(
+            response.data['access_token'], old_token)
+
+        # Assert requests made with the old tokens are rejected
+        post_data = {'current_password': new_password,
+                     'new_password': 'random'}
+        request = self.factory.post('/', data=post_data, **self.extra)
+        response = view(request, user='bob')
+        self.assertEqual(response.status_code, 401)

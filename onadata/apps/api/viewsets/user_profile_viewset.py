@@ -19,6 +19,7 @@ from django.utils.module_loading import import_string
 
 from registration.models import RegistrationProfile
 from rest_framework import serializers, status
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError
 from rest_framework.filters import OrderingFilter
@@ -26,6 +27,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from onadata.apps.api.models import TempToken
 from onadata.apps.api.tasks import send_verification_email
 from onadata.apps.api.permissions import UserProfilePermissions
 from onadata.apps.api.tools import get_baseviewset_class
@@ -142,6 +144,29 @@ def change_password_attempts(request):
     return 1
 
 
+def invalidate_and_regen_tokens(user):
+    """
+    Invalidates a users Access and Temp tokens and
+    generates new ones
+    """
+    try:
+        TempToken.objects.filter(user=user).delete()
+    except TempToken.DoesNotExist:
+        pass
+
+    try:
+        Token.objects.filter(user=user).delete()
+    except Token.DoesNotExist:
+        pass
+
+    access_token = Token.objects.create(user=user).key
+    temp_token = TempToken.objects.create(user=user).key
+    return {
+        'access_token': access_token,
+        'temp_token': temp_token
+    }
+
+
 class UserProfileViewSet(
         AuthenticateHeaderMixin,  # pylint: disable=R0901
         CacheControlMixin,
@@ -209,14 +234,20 @@ class UserProfileViewSet(
         if new_password:
             if not lock_out:
                 if user_profile.user.check_password(current_password):
+                    data = {
+                        'username': user_profile.user.username
+                    }
                     metadata = user_profile.metadata or {}
                     metadata['last_password_edit'] = timezone.now().isoformat()
                     user_profile.user.set_password(new_password)
                     user_profile.metadata = metadata
                     user_profile.user.save()
                     user_profile.save()
+                    data.update(invalidate_and_regen_tokens(
+                        user=user_profile.user))
 
-                    return Response(status=status.HTTP_204_NO_CONTENT)
+                    return Response(
+                        status=status.HTTP_200_OK, data=data)
 
                 response = change_password_attempts(request)
                 if isinstance(response, int):
